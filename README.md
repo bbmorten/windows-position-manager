@@ -1,14 +1,17 @@
 # Window Position Manager for macOS
 
-A shell script and AppleScript automation tool that saves and restores window positions across different monitor setups. Perfect for switching between work (1 external monitor) and home (2 external monitors) environments.
+A shell script and AppleScript automation tool that saves and restores window positions across **ALL screens** (including your MacBook's built-in display). Perfect for switching between work (1 external monitor + laptop) and home (2 external monitors + laptop) environments.
 
 ## Features
 
+- **Multi-screen support** - Captures windows across ALL displays including the laptop screen
+- **Display configuration tracking** - Records screen names, positions, and resolutions
 - **Save window positions** - Captures all visible application windows with their positions and sizes
-- **Restore window positions** - Restores windows to saved positions
+- **Restore window positions** - Restores windows to saved positions on all screens
 - **Auto-open applications** - Optionally opens closed applications during restore
 - **Multiple profiles** - Save different layouts for work, home, or custom setups
-- **Profile management** - List, delete, and manage saved profiles
+- **Profile management** - View detailed profile info, list, and delete saved profiles
+- **Display mismatch warning** - Warns if restoring to a different monitor setup
 - **Interactive dialogs** - User-friendly macOS dialogs for all interactions
 - **Command-line mode** - Quick save/restore via terminal for automation
 
@@ -68,23 +71,51 @@ For quick operations or scripting:
 # List all profiles
 ./window-manager.sh --list
 
+# Show current display configuration
+./window-manager.sh --displays
+
 # Show help
 ./window-manager.sh --help
 ```
 
 ## Typical Workflow
 
-### At Work (1 External Monitor)
+### At Work (1 External Monitor + Laptop Screen)
 
-1. Arrange your windows as desired
+1. Arrange your windows across both screens as desired
 2. Run: `./window-manager.sh --save work` or use interactive mode
 3. When you return to work, run: `./window-manager.sh --restore work`
 
-### At Home (2 External Monitors)
+### At Home (2 External Monitors + Laptop Screen)
 
-1. Arrange your windows across monitors
+1. Arrange your windows across all three screens
 2. Run: `./window-manager.sh --save home`
 3. When you return home, run: `./window-manager.sh --restore home`
+
+### Check Your Display Setup
+
+```bash
+./window-manager.sh --displays
+```
+
+Output example:
+```
+Current Display Configuration:
+==============================
+Total screens: 3
+
+  Built-in Retina Display
+    Position: (0, 0)
+    Size: 1728x1117
+
+  DELL U2722D
+    Position: (-1728, -200)
+    Size: 2560x1440
+
+  LG HDR 4K
+    Position: (1728, -400)
+    Size: 3840x2160
+```
 
 ## Profile Storage
 
@@ -94,10 +125,29 @@ Profiles are stored as JSON files in:
 ```
 
 Each profile contains:
-- Application name and bundle ID
-- Window title
-- Position (x, y)
-- Size (width, height)
+- **Display configuration**: Number of screens, names, positions, and sizes
+- **Save timestamp**: When the profile was created
+- **Window data** for each window:
+  - Application name and bundle ID
+  - Window title and index
+  - Position (x, y) - absolute coordinates spanning all screens
+  - Size (width, height)
+  - Center coordinates (for screen detection)
+
+Example profile structure:
+```json
+{
+  "saved_at": "Monday, December 8, 2025 at 10:30:00 AM",
+  "display_count": 2,
+  "displays": [
+    {"name": "Built-in Retina Display", "x": 0, "y": 0, "width": 1728, "height": 1117},
+    {"name": "DELL U2722D", "x": -1728, "y": -200, "width": 2560, "height": 1440}
+  ],
+  "windows": [
+    {"app": "Code", "bundle": "com.microsoft.VSCode", "window": "project", "x": -1500, "y": 100, ...}
+  ]
+}
+```
 
 ## Creating Quick Access
 
@@ -145,6 +195,7 @@ Grant Accessibility permissions:
 
 ## Limitations
 
+- **Multiple Spaces/Desktops**: Only windows on the current Space can be saved. macOS does not provide an API to access windows on other Spaces. If you use multiple Spaces, switch to each Space and save separate profiles (e.g., `work-space1`, `work-space2`).
 - Certain system apps (Finder windows, Control Center) are excluded
 - Apps with non-standard window handling may not restore perfectly
 - Window positions are absolute; changing monitor arrangement may affect results
