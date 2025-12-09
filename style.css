@@ -494,3 +494,45 @@ body {
 .profile-card {
     animation: fadeIn 0.4s ease-out forwards;
 }
+
+/* App List Styles */
+.app-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.app-list.hidden {
+    display: none;
+}
+
+.app-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-badge {
+    background: var(--primary-color);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 99px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 6px;
+    min-width: 18px;
+    text-align: center;
+}
