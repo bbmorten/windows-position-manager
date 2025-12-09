@@ -80,6 +80,41 @@ function renderProfiles(profiles) {
         clone.querySelector('.display-count').textContent = profile.display_count || 1;
         clone.querySelector('.space-count').textContent = profile.space_count || 1;
 
+        // Populate App List
+        const appList = clone.querySelector('.app-list');
+        const toggleBtn = clone.querySelector('.toggle-apps-btn');
+
+        if (profile.windows && profile.windows.length > 0) {
+            // Group by app name
+            const appMap = new Map();
+            profile.windows.forEach(w => {
+                appMap.set(w.app, (appMap.get(w.app) || 0) + 1);
+            });
+
+            appMap.forEach((count, appName) => {
+                const item = document.createElement('div');
+                item.className = 'app-item';
+                item.innerHTML = `
+                    <span class="app-name">${appName}</span>
+                    ${count > 1 ? `<span class="app-badge">${count}</span>` : ''}
+                `;
+                appList.appendChild(item);
+            });
+
+            toggleBtn.onclick = () => {
+                const isHidden = appList.classList.contains('hidden');
+                if (isHidden) {
+                    appList.classList.remove('hidden');
+                    toggleBtn.textContent = 'Hide Apps';
+                } else {
+                    appList.classList.add('hidden');
+                    toggleBtn.textContent = 'Show Apps';
+                }
+            };
+        } else {
+            toggleBtn.style.display = 'none';
+        }
+
         // Actions
         const restoreBtn = clone.querySelector('.restore-btn');
         restoreBtn.onclick = async () => {

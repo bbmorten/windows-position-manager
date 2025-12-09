@@ -116,17 +116,24 @@
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item">
-                    <span class="stat-value window-count">0</span>
-                    <span class="stat-label">Windows</span>
-                </div>
-                <div class="stat-divider"></div>
-                <div class="stat-item">
                     <span class="stat-value display-count">1</span>
                     <span class="stat-label">Monitors</span>
                 </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-value window-count">0</span>
+                    <span class="stat-label">Windows</span>
+                </div>
             </div>
 
-            <button class="btn btn-secondary restore-btn">Restore Layout</button>
+            <div class="app-list hidden">
+                <!-- App items will be injected here -->
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn btn-secondary toggle-apps-btn">Show Apps</button>
+                <button class="btn btn-primary restore-btn">Restore Layout</button>
+            </div>
         </div>
     </template>
 
