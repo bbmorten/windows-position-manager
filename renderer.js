@@ -11,6 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadProfiles();
     updateDisplayInfo();
     checkTutorial();
+    updateDisplayInfo();
+    checkTutorial();
+
+    // Listen for display changes (hot-plug)
+    window.api.onDisplayMetricsChanged(() => {
+        console.log('Display metrics changed, updating info...');
+        updateDisplayInfo();
+    });
 });
 
 function checkTutorial() {
@@ -85,21 +93,163 @@ function renderProfiles(profiles) {
         const toggleBtn = clone.querySelector('.toggle-apps-btn');
 
         if (profile.windows && profile.windows.length > 0) {
-            // Group by app name
-            const appMap = new Map();
+            // Container structure:
+            // [Tabs Header]
+            // [Active Tab Content]
+
+            // Group by Space
+            const spaces = {};
             profile.windows.forEach(w => {
-                appMap.set(w.app, (appMap.get(w.app) || 0) + 1);
+                const spaceId = w.space || 1;
+                if (!spaces[spaceId]) spaces[spaceId] = [];
+                spaces[spaceId].push(w);
             });
 
-            appMap.forEach((count, appName) => {
-                const item = document.createElement('div');
-                item.className = 'app-item';
-                item.innerHTML = `
-                    <span class="app-name">${appName}</span>
-                    ${count > 1 ? `<span class="app-badge">${count}</span>` : ''}
+            const renderAppItem = async (w, container) => {
+                const appEl = document.createElement('div');
+                appEl.className = 'app-icon-item';
+                appEl.title = `${w.app}\n${w.window || ''}\n${w.width}x${w.height} @ ${w.x},${w.y}`;
+
+                // Use simple colored placeholder with first letter
+                const firstLetter = w.app[0].toUpperCase();
+                const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#6366f1'];
+                const colorIndex = w.app.charCodeAt(0) % colors.length;
+                const bgColor = colors[colorIndex];
+
+                appEl.innerHTML = `
+                    <div class="icon-placeholder" style="background: ${bgColor}; color: white; font-weight: 600; font-size: 20px; display: flex; align-items: center; justify-content: center;">
+                        ${firstLetter}
+                    </div>
+                    <span class="app-label">${w.app}</span>
                 `;
-                appList.appendChild(item);
+                container.appendChild(appEl);
+            };
+
+            // Create Tabs and Contents
+            const spaceIds = Object.keys(spaces).sort((a, b) => parseInt(a) - parseInt(b));
+
+            // Container for Monitor Tabs
+            const monitorTabsHeader = document.createElement('div');
+            monitorTabsHeader.className = 'tabs-header monitor-tabs';
+
+            // Container for Space Tabs (Sub-tabs)
+            const spaceTabsHeader = document.createElement('div');
+            spaceTabsHeader.className = 'tabs-header space-tabs';
+            spaceTabsHeader.style.marginTop = '8px';
+            spaceTabsHeader.style.borderBottom = 'none';
+
+            // Content Area
+            const tabsContent = document.createElement('div');
+            tabsContent.className = 'tabs-content';
+
+            appList.appendChild(monitorTabsHeader);
+            appList.appendChild(spaceTabsHeader);
+            appList.appendChild(tabsContent);
+
+            const displays = profile.displays || [{ name: "Unknown Display", x: 0, width: 99999 }];
+
+            // Helper: Get Windows for (Monitor, Space)
+            const getWindowsFor = (display, spaceId) => {
+                const spaceWindows = spaces[spaceId] || [];
+                console.log(`[RENDER] Checking ${spaceWindows.length} windows for display "${display.name}" (x:${display.x}-${display.x + display.width}, y:${display.y}-${display.y + display.height})`);
+
+                const matched = spaceWindows.filter(w => {
+                    // For side-by-side displays, X coordinate is the primary indicator
+                    // Use center_x if available, otherwise calculate from x + width/2
+                    const wx = w.center_x !== undefined ? w.center_x : (w.x + (w.width || 0) / 2);
+
+                    // Check if window's horizontal center is within this display's X range
+                    const inXRange = wx >= display.x && wx < (display.x + display.width);
+
+                    // For Y, be more lenient - windows can extend beyond display bounds
+                    // Just check if window origin is somewhere reasonable (not wildly off)
+                    const wy = w.y;
+                    const displayTopY = display.y;
+                    const displayBottomY = display.y + display.height;
+
+                    // Window is "on" this display if it starts within or slightly outside the Y bounds
+                    const inYRange = wy >= (displayTopY - 200) && wy < (displayBottomY + 500);
+
+                    const matches = inXRange && inYRange;
+
+                    if (wx > 2000 || wy > 500 || !matches) {
+                        console.log(`[RENDER]   ${w.app}: x=${w.x} center_x=${wx} y=${wy} - X:${inXRange} Y:${inYRange} = ${matches}`);
+                    }
+
+                    return matches;
+                });
+
+                console.log(`[RENDER] Matched ${matched.length} windows for "${display.name}"`);
+                return matched;
+            };
+
+            // 1. Render Monitor Tabs
+            const loadMonitor = (display) => {
+                // Clear sub-tabs and content
+                spaceTabsHeader.innerHTML = '';
+                tabsContent.innerHTML = '';
+
+                // Find which spaces have content on THIS monitor
+                const activeSpaces = Object.keys(spaces).filter(spaceId => {
+                    const wins = getWindowsFor(display, spaceId);
+                    return wins.length > 0;
+                }).sort((a, b) => parseInt(a) - parseInt(b));
+
+                if (activeSpaces.length === 0) {
+                    tabsContent.innerHTML = '<div class="empty-state">No windows captured on this monitor.</div>';
+                    return;
+                }
+
+                // 2. Render Space Sub-Tabs
+                const loadSpace = (spaceId) => {
+                    tabsContent.innerHTML = '';
+                    const grid = document.createElement('div');
+                    grid.className = 'apps-grid';
+
+                    const wins = getWindowsFor(display, spaceId);
+                    wins.forEach(w => renderAppItem(w, grid));
+
+                    tabsContent.appendChild(grid);
+                };
+
+                activeSpaces.forEach((spaceId, idx) => {
+                    const sBtn = document.createElement('button');
+                    sBtn.className = 'tab-btn space-tab-btn';
+                    sBtn.textContent = `Space ${spaceId}`;
+                    if (idx === 0) sBtn.classList.add('active');
+
+                    sBtn.onclick = (e) => {
+                        spaceTabsHeader.querySelectorAll('.space-tab-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        loadSpace(spaceId);
+                    };
+                    spaceTabsHeader.appendChild(sBtn);
+                });
+
+                // Load first space
+                if (activeSpaces.length > 0) loadSpace(activeSpaces[0]);
+            };
+
+            displays.forEach((disp, idx) => {
+                const mBtn = document.createElement('button');
+                mBtn.className = 'tab-btn monitor-tab-btn';
+                mBtn.textContent = disp.name || `Monitor ${idx + 1}`;
+                if (idx === 0) mBtn.classList.add('active');
+
+                mBtn.onclick = (e) => {
+                    monitorTabsHeader.querySelectorAll('.monitor-tab-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    loadMonitor(disp);
+                };
+                monitorTabsHeader.appendChild(mBtn);
             });
+
+            // Init
+            if (displays.length > 0) loadMonitor(displays[0]);
+
+
+
+
 
             toggleBtn.onclick = () => {
                 const isHidden = appList.classList.contains('hidden');
@@ -112,7 +262,9 @@ function renderProfiles(profiles) {
                 }
             };
         } else {
-            toggleBtn.style.display = 'none';
+            toggleBtn.textContent = 'No Apps';
+            toggleBtn.disabled = true;
+            toggleBtn.style.opacity = '0.5';
         }
 
         // Actions
@@ -170,17 +322,17 @@ saveBtn.addEventListener('click', async () => {
     }
 
     const isMultiSpace = document.getElementById('multi-space-check').checked;
-    const spaceCount = parseInt(document.getElementById('space-count').value) || 1;
 
     // UI Loading state
     const originalText = saveBtn.innerHTML;
-    saveBtn.textContent = isMultiSpace ? 'Saving All Spaces...' : 'Saving...';
+    saveBtn.textContent = isMultiSpace ? 'Detecting & Saving All Spaces...' : 'Saving...';
     saveBtn.disabled = true;
 
     try {
         if (isMultiSpace) {
-            if (confirm(`You are about to save ${spaceCount} spaces.\n\nIMPORTANT:\n1. Ensure you are currently on Space 1.\n2. Do not touch the keyboard/mouse while running.\n\nThe app will simulate swiping right to capture each space.`)) {
-                await window.api.saveProfileAll(name, spaceCount);
+            if (confirm(`You are about to save ALL desktop spaces (auto-detected).\\n\\nIMPORTANT:\\n1. Ensure you are currently on Space 1.\\n2. Do not touch the keyboard/mouse while running.\\n\\nThe app will automatically detect and capture all your spaces.`)) {
+                // Pass 'auto' to trigger automatic detection
+                await window.api.saveProfileAll(name, 'auto');
             }
         } else {
             await window.api.saveProfile(name);

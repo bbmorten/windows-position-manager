@@ -1,7 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { execFile } = require('child_process');
+const { execFile, execSync } = require('child_process');
 const os = require('os');
 
 const SCRIPT_PATH = path.join(__dirname, 'scripts', 'window-manager.sh');
@@ -13,8 +13,8 @@ let tray = null;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 700,
+        width: 1200,
+        height: 900,
         titleBarStyle: 'hiddenInset',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -91,8 +91,10 @@ function getProfilesData() {
         const profiles = Array.from(profilesMap.values()).map(p => {
             if (p.isGroup) {
                 p.space_count = p.spaces.length;
-                // Calculate total windows from all sub-profiles
-                let totalWindows = 0;
+                // Aggregate windows from all sub-profiles
+                let allWindows = [];
+                let displays = []; // Capture display info
+
                 p.spaces.forEach(i => {
                     const subProfileName = `${p.name}_Space${i}`;
                     const subFile = files.find(f => f === `${subProfileName}.json`);
@@ -100,13 +102,31 @@ function getProfilesData() {
                         try {
                             const subContent = fs.readFileSync(path.join(CONFIG_DIR, subFile), 'utf-8');
                             const subData = JSON.parse(subContent);
+
+                            // Capture displays from the first valid sub-profile
+                            if (subData.displays && displays.length === 0) {
+                                displays = subData.displays;
+                            }
+
                             if (subData.windows) {
-                                totalWindows += subData.windows.length;
+                                // Add space info to each window
+                                const spacedWindows = subData.windows.map(w => ({
+                                    ...w,
+                                    space: i,
+                                    display_index: 0 // We'll calculate this later or in renderer
+                                }));
+                                allWindows = allWindows.concat(spacedWindows);
                             }
                         } catch (e) { }
                     }
                 });
-                p.windows = { length: totalWindows };
+                p.windows = allWindows;
+                p.displays = displays;  // Assign to parent profile
+            } else {
+                // For single profiles, ensure windows have space: 1
+                if (p.windows) {
+                    p.windows = p.windows.map(w => ({ ...w, space: 1 }));
+                }
             }
             return p;
         });
@@ -182,8 +202,25 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+    // Trigger the prompt if needed, but don't block with a custom dialog
+    if (process.platform === 'darwin') {
+        const { systemPreferences } = require('electron');
+        systemPreferences.isTrustedAccessibilityClient(true);
+    }
+
     createWindow();
     createTray();
+
+    // Hot-plug Detection
+    const updateDisplays = () => {
+        if (mainWindow) {
+            mainWindow.webContents.send('display-metrics-changed');
+        }
+    };
+
+    screen.on('display-added', updateDisplays);
+    screen.on('display-removed', updateDisplays);
+    screen.on('display-metrics-changed', updateDisplays);
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -300,6 +337,67 @@ ipcMain.handle('delete-profile', async (event, name) => {
         return deletedAny;
     } catch (error) {
         throw error;
+    }
+});
+
+ipcMain.handle('get-app-icon', async (event, appName) => {
+    console.log(`[ICON] Fetching icon for: "${appName}"`);
+    try {
+        // 1. Try common paths first (fastest)
+        const commonPaths = [
+            `/Applications/${appName}.app`,
+            `/System/Applications/${appName}.app`,
+            `/System/Applications/Utilities/${appName}.app`,
+            `${os.homedir()}/Applications/${appName}.app`
+        ];
+
+        let appPath = commonPaths.find(p => fs.existsSync(p));
+        if (appPath) {
+            console.log(`[ICON] Found in common paths: ${appPath}`);
+        }
+
+        // 2. If not found, use mdfind (slower but thorough)
+        if (!appPath) {
+            const { execSync } = require('child_process');
+            try {
+                // Escape simple quotes for shell
+                const safeName = appName.replace(/'/g, "'\\''");
+                // Exact match first (case-insensitive)
+                let cmd = `mdfind "kMDItemKind == 'Application' && kMDItemFSName == '${safeName}.app'c" | head -n 1`;
+                console.log(`[ICON] Running mdfind: ${cmd}`);
+                let result = execSync(cmd, { encoding: 'utf8' }).trim();
+
+                if (!result) {
+                    // Try display name match (case-insensitive)
+                    cmd = `mdfind "kMDItemKind == 'Application' && kMDItemDisplayName == '${safeName}'c" | head -n 1`;
+                    console.log(`[ICON] Trying display name: ${cmd}`);
+                    result = execSync(cmd, { encoding: 'utf8' }).trim();
+                }
+
+                if (result && fs.existsSync(result)) {
+                    appPath = result;
+                    console.log(`[ICON] Found via mdfind: ${appPath}`);
+                } else {
+                    console.log(`[ICON] mdfind returned no results for: ${appName}`);
+                }
+            } catch (err) {
+                console.error('[ICON] mdfind failed:', err);
+            }
+        }
+
+        if (appPath) {
+            console.log(`[ICON] Getting file icon for: ${appPath}`);
+            // Request a larger icon size (64x64) for better quality
+            const icon = await app.getFileIcon(appPath, { size: 'normal' });
+            const dataUrl = icon.toDataURL();
+            console.log(`[ICON] Successfully generated icon (${dataUrl.length} bytes)`);
+            return dataUrl;
+        }
+        console.log(`[ICON] No path found for: ${appName}`);
+        return null;
+    } catch (e) {
+        console.error('[ICON] Icon fetch failed:', e);
+        return null;
     }
 });
 

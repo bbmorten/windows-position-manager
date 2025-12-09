@@ -696,29 +696,163 @@ switch_to_prev_space() {
 }
 
 # Save all spaces
+# Detect total number of spaces
+detect_space_count() {
+    local count
+    
+    # Method 1: Try using defaults to read Mission Control preferences
+    count=$(defaults read com.apple.spaces SpacesDisplayConfiguration 2>/dev/null | grep -o "Space [0-9]*" | wc -l | tr -d ' ')
+    
+    if [ -z "$count" ] || [ "$count" -eq 0 ] || [ "$count" -gt 16 ]; then
+        # Method 2: Count by actually switching and detecting wrap-around
+        echo "Counting spaces by switching..." >&2
+        
+        # Save current space
+        local start_space=1
+        local max_attempts=16
+        local detected=0
+        
+        # Try switching right up to 16 times
+        for ((i=1; i<=max_attempts; i++)); do
+            # Try to switch to next space
+            osascript -e 'tell application "System Events" to key code 124 using {control down}' 2>/dev/null
+            sleep 0.5
+            detected=$((detected + 1))
+            
+            # Check if we can still switch (simple heuristic)
+            if [ $i -ge 12 ]; then
+                # After 12 attempts, assume we've found all spaces
+                break
+            fi
+        done
+        
+        # Go back to start
+        for ((i=1; i<=detected; i++)); do
+            osascript -e 'tell application "System Events" to key code 123 using {control down}' 2>/dev/null
+            sleep 0.3
+        done
+        
+        count=$detected
+    fi
+    
+    # Sanity check: if count is unreasonable, default to 8
+    if [ -z "$count" ] || [ "$count" -eq 0 ] || [ "$count" -gt 16 ]; then
+        echo "Warning: Could not reliably detect space count, defaulting to 8" >&2
+        count=8
+    fi
+    
+    echo "$count"
+}
+
 save_all_spaces() {
     local profile_base="$1"
     local count="$2"
-
-    echo "Starting batch save for $count spaces..."
     
-    for ((i=1; i<=count; i++)); do
-        echo "Saving Space $i..."
-        osascript -e "display notification \"Saving Space $i of $count...\" with title \"Window Manager\""
-        BATCH_MODE=true save_windows "${profile_base}_Space${i}"
+    # Simple display count - ask user
+    local display_count
+    display_count=$(osascript <<'EOF'
+set userInput to text returned of (display dialog "How many displays are connected?" default answer "2" buttons {"Cancel", "OK"} default button "OK" with title "Display Count")
+return userInput
+EOF
+    )
+    
+    if [ $? -ne 0 ]; then
+        echo "User cancelled"
+        return 1
+    fi
+    
+    echo "User specified $display_count displays"
+    
+    # Ask for space counts per display
+    local -a space_counts=()
+    local -a display_names=()
+    local total_spaces=0
+    
+    for ((d=1; d<=display_count; d++)); do
+        # Ask for display name
+        local disp_name
+        disp_name=$(osascript <<EOF
+set userInput to text returned of (display dialog "Name for Display $d?" default answer "Display $d" buttons {"Cancel", "OK"} default button "OK" with title "Display $d Name")
+return userInput
+EOF
+        )
         
-        if [ $i -lt $count ]; then
-            switch_to_next_space
+        if [ $? -ne 0 ]; then
+            echo "User cancelled"
+            return 1
         fi
+        
+        display_names+=("$disp_name")
+        
+        # Ask for space count on this display
+        local user_count
+        user_count=$(osascript <<EOF
+set userInput to text returned of (display dialog "How many spaces on '$disp_name'?" default answer "3" buttons {"Cancel", "OK"} default button "OK" with title "Space Count for $disp_name")
+return userInput
+EOF
+        )
+        
+        if [ $? -ne 0 ]; then
+            echo "User cancelled"
+            return 1
+        fi
+        
+        space_counts+=("$user_count")
+        total_spaces=$((total_spaces + user_count))
     done
     
-    # Return to starting space
-    echo "Returning to Space 1..."
-    for ((i=1; i<count; i++)); do
-        switch_to_prev_space
+    
+    echo \"Total spaces to capture: $total_spaces\"
+    
+    # Warning Dialog
+    osascript <<EOF
+        display dialog "Prepare for Multi-Display Space Switching" & return & return & "The app will now switch through spaces on $display_count displays." & return & return & "⚠️ Please do NOT touch the mouse or keyboard during this process!" buttons {"Cancel", "Start Scanning"} default button "Start Scanning" with title "Window Manager" with icon caution
+EOF
+    if [ $? -ne 0 ]; then
+        echo "Batch save cancelled by user."
+        return 0
+    fi
+    
+    
+    local space_index=1
+    
+    # For each display
+    for ((d=1; d<=display_count; d++)); do
+        local array_idx=$((d - 1))
+        local disp_name="${display_names[$array_idx]}"
+        local disp_spaces="${space_counts[$array_idx]}"
+        
+        echo "Processing display: $disp_name ($disp_spaces spaces)"
+        
+        # Ask user to focus the display
+        osascript <<EOF
+            display dialog "Click OK, then click anywhere on '$disp_name' to focus it.\n\nYou have 3 seconds." buttons {"OK"} default button "OK" with title "Focus: $disp_name"
+EOF
+        sleep 3
+        
+        # Switch through spaces on this display
+        for ((s=1; s<=disp_spaces; s++)); do
+            echo "Saving ${disp_name} Space $s..."
+            osascript -e "display notification \"Saving ${disp_name} Space $s...\" with title \"Window Manager\""
+            
+            BATCH_MODE=true save_windows "${profile_base}_Space${space_index}"
+            space_index=$((space_index + 1))
+            
+            if [ $s -lt $disp_spaces ]; then
+                # Switch to next space on this display
+                osascript -e 'tell application "System Events" to key code 124 using {control down}'
+                sleep 0.8
+            fi
+        done
+        
+        # Return to first space on this display before moving to next display
+        for ((s=1; s<disp_spaces; s++)); do
+            osascript -e 'tell application "System Events" to key code 123 using {control down}'
+            sleep 0.3
+        done
     done
     
-    osascript -e "display dialog \"Batch Save Completed!\" & return & return & \"Successfully saved $count spaces.\" buttons {\"OK\"} default button \"OK\" with title \"Window Manager\" with icon note"
+    osascript -e "display dialog \"Batch Save Completed!\" & return & return & \"Successfully saved $((space_index - 1)) spaces across $display_count displays.\" buttons {\"OK\"} default button \"OK\" with title \"Window Manager\" with icon note"
 }
 
 # Restore all spaces

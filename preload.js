@@ -7,5 +7,8 @@ contextBridge.exposeInMainWorld('api', {
     restoreProfile: (name) => ipcRenderer.invoke('restore-profile', name),
     restoreProfileAll: (name, count) => ipcRenderer.invoke('restore-profile-all', { name, count }),
     deleteProfile: (name) => ipcRenderer.invoke('delete-profile', name),
-    getCurrentDisplay: () => ipcRenderer.invoke('get-current-display')
+    deleteProfile: (name) => ipcRenderer.invoke('delete-profile', name),
+    getCurrentDisplay: () => ipcRenderer.invoke('get-current-display'),
+    onDisplayMetricsChanged: (callback) => ipcRenderer.on('display-metrics-changed', callback),
+    getAppIcon: (appName) => ipcRenderer.invoke('get-app-icon', appName)
 });

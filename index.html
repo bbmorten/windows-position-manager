@@ -13,10 +13,40 @@
 <body>
     <div class="app-container">
         <header class="app-header">
-            <h1>Window Manager</h1>
-            <div class="display-status" id="display-status">
-                <span class="status-dot"></span>
-                <span id="display-text">Loading display info...</span>
+            <div class="header-main">
+                <div class="header-left">
+                    <h1>Window Manager <span class="version-tag">v1.1</span></h1>
+                    <div class="display-status" id="display-status">
+                        <span class="status-dot"></span>
+                        <span id="display-text">Loading display info...</span>
+                    </div>
+                </div>
+
+                <div class="header-actions">
+                    <div class="space-controls">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="multi-space-check">
+                            <span>Save All Spaces (Auto-detect)</span>
+                        </label>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="text" id="new-profile-name" placeholder="Profile Name">
+                        <button id="save-btn" class="btn btn-primary" title="Save Current Setup">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="save-icon">
+                                <path
+                                    d="M19 21H5C4.44772 21 4 20.5523 4 20V4C4 3.44772 4.44772 3 5 3H16L20 7V20C20 20.5523 19.5523 21 19 21Z"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                                <path d="M17 21V13H7V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                                <path d="M7 3V8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                            </svg>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -32,37 +62,6 @@
                 </div>
             </section>
         </main>
-
-        <footer class="action-bar">
-            <div class="input-controls">
-                <div class="space-controls">
-                    <label class="checkbox-container">
-                        <input type="checkbox" id="multi-space-check"
-                            onchange="document.getElementById('space-count-wrapper').style.display = this.checked ? 'flex' : 'none'">
-                        <span>Save All Spaces</span>
-                    </label>
-                    <div id="space-count-wrapper" style="display: none; align-items: center; gap: 8px;">
-                        <span>Spaces to Scan:</span>
-                        <input type="number" id="space-count" value="3" min="1" max="16" style="width: 60px;">
-                    </div>
-                </div>
-            </div>
-            <div class="input-group">
-                <input type="text" id="new-profile-name" placeholder="Profile Name (e.g. Work)">
-                <button id="save-btn" class="btn btn-primary">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                            d="M19 21H5C4.44772 21 4 20.5523 4 20V4C4 3.44772 4.44772 3 5 3H16L20 7V20C20 20.5523 19.5523 21 19 21Z"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                        <path d="M17 21V13H7V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                        <path d="M7 3V8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                    </svg>
-                    Save Current Setup
-                </button>
-            </div>
-        </footer>
     </div>
 
     <!-- Tutorial Modal -->
