@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Window Position Manager</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Window Manager</h1>
+            <div class="display-status" id="display-status">
+                <span class="status-dot"></span>
+                <span id="display-text">Loading display info...</span>
+            </div>
+        </header>
+
+        <main class="content-area">
+            <section class="profiles-section">
+                <div class="section-header">
+                    <h2>Saved Profiles</h2>
+                </div>
+
+                <div class="profiles-grid" id="profiles-grid">
+                    <!-- Profiles will be injected here -->
+                    <div class="loading-spinner">Loading profiles...</div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="action-bar">
+            <div class="input-controls">
+                <div class="space-controls">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="multi-space-check"
+                            onchange="document.getElementById('space-count-wrapper').style.display = this.checked ? 'flex' : 'none'">
+                        <span>Save All Spaces</span>
+                    </label>
+                    <div id="space-count-wrapper" style="display: none; align-items: center; gap: 8px;">
+                        <span>Spaces to Scan:</span>
+                        <input type="number" id="space-count" value="3" min="1" max="16" style="width: 60px;">
+                    </div>
+                </div>
+            </div>
+            <div class="input-group">
+                <input type="text" id="new-profile-name" placeholder="Profile Name (e.g. Work)">
+                <button id="save-btn" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M19 21H5C4.44772 21 4 20.5523 4 20V4C4 3.44772 4.44772 3 5 3H16L20 7V20C20 20.5523 19.5523 21 19 21Z"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M17 21V13H7V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M7 3V8H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    Save Current Setup
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Tutorial Modal -->
+    <div id="tutorial-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <img src="assets/robot-logo.svg" width="64" height="64" alt="WPM Logo"
+                    style="filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.5));">
+            </div>
+            <h2>Welcome to WPM!</h2>
+            <p>Easily manage your window layouts across multiple monitors and spaces.</p>
+
+            <div class="tutorial-step">
+                <div class="step-number">1</div>
+                <div class="step-text">Save your layout for <strong>Home</strong> or <strong>Work</strong></div>
+            </div>
+
+            <div class="tutorial-step">
+                <div class="step-number">2</div>
+                <div class="step-text">
+                    <strong>Multi-Space Support:</strong> Check "Save All Spaces" to automatically swipe and capture
+                    every desktop.
+                    <div class="note">⚠️ Don't touch the mouse while it's swiping!</div>
+                </div>
+            </div>
+
+            <button id="close-tutorial" class="btn btn-primary full-width">Get Started</button>
+        </div>
+    </div>
+
+    <!-- Templates -->
+    <template id="profile-card-template">
+        <div class="profile-card">
+            <div class="card-header">
+                <div class="header-top">
+                    <h3 class="profile-name"></h3>
+                    <button class="btn-icon delete-btn" title="Delete Profile">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <span class="profile-date"></span>
+            </div>
+
+            <div class="card-stats">
+                <div class="stat-item">
+                    <span class="stat-value space-count">1</span>
+                    <span class="stat-label">Spaces</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-value window-count">0</span>
+                    <span class="stat-label">Windows</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-value display-count">1</span>
+                    <span class="stat-label">Monitors</span>
+                </div>
+            </div>
+
+            <button class="btn btn-secondary restore-btn">Restore Layout</button>
+        </div>
+    </template>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>

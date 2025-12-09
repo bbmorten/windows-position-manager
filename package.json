@@ -1,0 +1,47 @@
+{
+  "name": "wpm",
+  "productName": "Window Position Manager",
+  "version": "1.0.0",
+  "description": "Store and restore window positions across multiple spaces",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bbmorten/windows-position-manager.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bbmorten/windows-position-manager/issues"
+  },
+  "homepage": "https://github.com/bbmorten/windows-position-manager#readme",
+  "build": {
+    "appId": "com.bbmorten.wpm",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": "dmg",
+      "icon": "assets/robot-logo.png"
+    },
+    "files": [
+      "**/*",
+      "!dist/*",
+      "!node_modules/*/.cache"
+    ],
+    "extraResources": [
+      {
+        "from": "scripts",
+        "to": "scripts"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^24.13.3"
+  }
+}

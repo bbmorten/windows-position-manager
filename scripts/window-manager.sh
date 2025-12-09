@@ -136,12 +136,16 @@ save_windows() {
     local profile="$1"
     local profile_file="$PROFILES_DIR/${profile}.json"
 
-    # Warn about Spaces/multiple desktops limitation
-    osascript <<EOF
-        display dialog "Important: Only windows on the CURRENT desktop/Space will be saved." & return & return & "Windows on other Spaces cannot be captured due to macOS limitations." & return & return & "Switch to each Space and save separate profiles if needed." buttons {"Cancel", "Continue"} default button "Continue" with title "Space Limitation" with icon note
+
+    # Skip warning in batch mode
+    if [ "${BATCH_MODE:-false}" != "true" ]; then
+        # Warn about Spaces/multiple desktops limitation
+        osascript <<EOF
+            display dialog "Important: Only windows on the CURRENT desktop/Space will be saved." & return & return & "Windows on other Spaces cannot be captured due to macOS limitations." & return & return & "Switch to each Space and save separate profiles if needed." buttons {"Cancel", "Continue"} default button "Continue" with title "Space Limitation" with icon note
 EOF
-    if [ $? -ne 0 ]; then
-        return 0
+        if [ $? -ne 0 ]; then
+            return 0
+        fi
     fi
 
     # Get display info first
@@ -292,7 +296,7 @@ restore_windows() {
     saved_displays=$(grep -o '"display_count": [0-9]*' "$profile_file" | grep -o '[0-9]*')
     
     # Warn if display count differs
-    if [ "$current_displays" != "$saved_displays" ]; then
+    if [ "$current_displays" != "$saved_displays" ] && [ "${BATCH_MODE:-false}" != "true" ]; then
         local proceed
         proceed=$(osascript <<EOF
             set theChoice to button returned of (display dialog "Display Configuration Changed" & return & return & "Profile was saved with $saved_displays screen(s), but you currently have $current_displays screen(s)." & return & return & "Window positions may not restore correctly." buttons {"Cancel", "Continue Anyway"} default button "Continue Anyway" with title "Warning" with icon caution)
@@ -305,12 +309,14 @@ EOF
     fi
     
     # Ask about opening closed apps
-    local open_apps
-    open_apps=$(osascript <<EOF
-        set theChoice to button returned of (display dialog "Do you want to open applications that are currently closed?" buttons {"No", "Yes"} default button "Yes" with title "Restore Options" with icon note)
-        return theChoice
+    local open_apps="Yes"
+    if [ "${BATCH_MODE:-false}" != "true" ]; then
+        open_apps=$(osascript <<EOF
+            set theChoice to button returned of (display dialog "Do you want to open applications that are currently closed?" buttons {"No", "Yes"} default button "Yes" with title "Restore Options" with icon note)
+            return theChoice
 EOF
-    )
+        )
+    fi
     
     local open_flag="false"
     [ "$open_apps" = "Yes" ] && open_flag="true"
@@ -676,6 +682,77 @@ show_displays() {
     done
 }
 
+
+# Switch to next space
+switch_to_next_space() {
+    osascript -e 'tell application "System Events" to key code 124 using control down'
+    sleep 2.0 # Wait for animation
+}
+
+# Switch to previous space
+switch_to_prev_space() {
+    osascript -e 'tell application "System Events" to key code 123 using control down'
+    sleep 0.8 # Slightly faster return
+}
+
+# Save all spaces
+save_all_spaces() {
+    local profile_base="$1"
+    local count="$2"
+
+    echo "Starting batch save for $count spaces..."
+    
+    for ((i=1; i<=count; i++)); do
+        echo "Saving Space $i..."
+        osascript -e "display notification \"Saving Space $i of $count...\" with title \"Window Manager\""
+        BATCH_MODE=true save_windows "${profile_base}_Space${i}"
+        
+        if [ $i -lt $count ]; then
+            switch_to_next_space
+        fi
+    done
+    
+    # Return to starting space
+    echo "Returning to Space 1..."
+    for ((i=1; i<count; i++)); do
+        switch_to_prev_space
+    done
+    
+    osascript -e "display dialog \"Batch Save Completed!\" & return & return & \"Successfully saved $count spaces.\" buttons {\"OK\"} default button \"OK\" with title \"Window Manager\" with icon note"
+}
+
+# Restore all spaces
+restore_all_spaces() {
+    local profile_base="$1"
+    local count="$2"
+
+    echo "Starting batch restore for $count spaces..."
+    
+    for ((i=1; i<=count; i++)); do
+        echo "Restoring Space $i..."
+        local profile_name="${profile_base}_Space${i}"
+        
+        if [ -f "$PROFILES_DIR/${profile_name}.json" ]; then
+            BATCH_MODE=true restore_windows "$profile_name"
+        else
+            echo "Warning: Profile $profile_name not found, skipping."
+        fi
+        
+        if [ $i -lt $count ]; then
+            switch_to_next_space
+        fi
+    done
+    
+    # Return to starting space
+    echo "Returning to Space 1..."
+    for ((i=1; i<count; i++)); do
+        switch_to_prev_space
+    done
+    
+    osascript -e "display dialog \"Batch Restore Completed!\" & return & return & \"Successfully restored $count spaces.\" buttons {\"OK\"} default button \"OK\" with title \"Window Manager\" with icon note"
+}
+
+
 # Main execution
 main() {
     case "${1:-}" in
@@ -704,6 +781,12 @@ main() {
             ;;
         --displays)
             show_displays
+            ;;
+        --save-all)
+            save_all_spaces "${2:-default}" "${3:-1}"
+            ;;
+        --restore-all)
+            restore_all_spaces "${2:-default}" "${3:-1}"
             ;;
         --help)
             echo "Window Position Manager for macOS"
