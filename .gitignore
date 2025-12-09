@@ -4,4 +4,4 @@ dist/
 *.pfx
 .env
 .idea/
-.vscode/
+.vscode/mcp.json
